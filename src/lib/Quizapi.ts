@@ -1,15 +1,16 @@
 import axios from "axios";
 
-const QUIZAPI_BASE = "https://quizapi.io/api/v1";
+const QUIZAPI_BASE = "https://quizapi.io/api/v1/questions";
 const API_KEY = process.env.QUIZAPI_KEY;
 
-interface QuizAPIQuestion {
+export interface QuizAPIQuestion {
   id: number;
   question: string;
   answers: Record<string, string | null>;
   correct_answer: string;
   difficulty: string;
   tags: { name: string }[];
+  correct_answers: Record<string, string>;
 }
 
 // ─── Shuffle array helper ───────────────────────────
@@ -26,11 +27,15 @@ function shuffleArray<T>(arr: T[]): T[] {
 export async function fetchQuestions(
   topic: string,
   difficulty: string,
-  limit: number
+  limit: number,
+   level: string,
+  count: number
 ) {
   try {
+    const tag = topicTagMap[topic] || topic;
+  const difficulty = levelDifficultyMap[level] || "Easy";
     const { data } = await axios.get<QuizAPIQuestion[]>(
-      `${QUIZAPI_BASE}/questions`,
+      `${QUIZAPI_BASE}`,
       {
         params: {
           apiKey: API_KEY,
@@ -64,3 +69,37 @@ export async function fetchQuestions(
     throw new Error("Failed to fetch questions from QuizAPI");
   }
 }
+
+
+const topicTagMap: Record<string, string> = {
+  html: "HTML",
+  css: "CSS",
+  javascript: "JavaScript",
+};
+
+// Map our level names to QuizAPI difficulty
+const levelDifficultyMap: Record<string, string> = {
+  beginner: "Easy",
+  intermediate: "Medium",
+  advanced: "Hard",
+};
+
+
+
+
+// Shuffle answer options to prevent cheating
+export const shuffleOptions = (
+  answers: Record<string, string | null>
+): { key: string; value: string }[] => {
+  const options = Object.entries(answers)
+    .filter(([, value]) => value !== null && value !== "")
+    .map(([key, value]) => ({ key, value: value as string }));
+
+  // Fisher-Yates shuffle
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+
+  return options;
+};

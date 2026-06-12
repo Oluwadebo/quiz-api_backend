@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
-import { connectDB } from "./config/db";
+import { connectDB } from "./lib/db";
 
 // import analytics from "./routes/analytics";
 // import auth from "./routes/auth";
@@ -66,6 +66,18 @@ app.use(
     res.status(500).json({ error: "Internal server error" });
   },
 );
+
+if (process.env.NODE_ENV === "production") {
+  const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  setInterval(async () => {
+    try {
+      await fetch(`${SELF_URL}/health`);
+      console.log("[Keep-alive] Pinged");
+    } catch {}
+  }, 10 * 60 * 1000);
+}
+
+
 connectDB();
 
 app.listen(PORT, () => {
