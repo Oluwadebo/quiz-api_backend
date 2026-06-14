@@ -9,20 +9,19 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { connectDB } from "./lib/db";
 
-// import analytics from "./routes/analytics";
-// import auth from "./routes/auth";
-// import project from "./routes/project";
-// import Settings from "./routes/Settings";
-// import upload from "./routes/upload";
-// import view from "./routes/view";
+import authRoutes from "./routes/auth";
+import courseRoutes from "./routes/course";
+import sessionRoutes from "./routes/session";
+import leaderboardRoutes from "./routes/leaderboard";
+import adminRoutes from "./routes/admin";
+import settingsRoutes from "./routes/settings";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 5000;
-// console.log(Settings);
+connectDB();
 
-// ─── Middleware ─────────────────────────────────────
 app.use(helmet());
 app.use(
   cors({
@@ -37,15 +36,14 @@ app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ─── Routes ────────────────────────────────────────
-// app.use("/api/auth", auth);
-// app.use("/api/projects", project);
-// app.use("/api/analytics", analytics);
-// app.use("/api/upload", upload);
-// app.use("/api/view", view);
-// app.use("/api/settings", Settings);
 
-// ─── Health check ──────────────────────────────────
+app.use("/api/auth", authRoutes);
+app.use("/api/courses", courseRoutes);
+app.use("/api/sessions", sessionRoutes);
+app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/settings", settingsRoutes);
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
@@ -78,10 +76,9 @@ if (process.env.NODE_ENV === "production") {
 }
 
 
-connectDB();
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 Backend running on http://localhost:${PORT}`);
+  console.log(`\n🚀 Quiz API Backend running on http://localhost:${PORT}`);
 });
 
 export default app;

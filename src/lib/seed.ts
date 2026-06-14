@@ -12,7 +12,7 @@ const UserSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
   password: String,
-  role: { type: String, default: "student" },
+  role: { type: String, default: "admin" },
 }, { timestamps: true });
 
 const CourseSchema = new mongoose.Schema({
@@ -49,7 +49,7 @@ async function main() {
   if (!existing) {
     const hashed = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 12);
     await User.create({
-      name: "Admin",
+      name: "Super Admin",
       email: process.env.ADMIN_EMAIL,
       password: hashed,
       role: "admin",
@@ -74,9 +74,9 @@ async function main() {
 
       // Create 3 tests per course
       const tests = [
-        { level: "beginner", title: `${courseData.title} — Beginner`, questionCount: 10, timeLimit: 10, passMark: 70, difficulty: "Easy", maxAttemptsPerWeek: 3, order: 1 },
-        { level: "intermediate", title: `${courseData.title} — Intermediate`, questionCount: 15, timeLimit: 15, passMark: 70, difficulty: "Medium", maxAttemptsPerWeek: 2, order: 2 },
-        { level: "advanced", title: `${courseData.title} — Advanced`, questionCount: 20, timeLimit: 20, passMark: 70, difficulty: "Hard", maxAttemptsPerWeek: 999, order: 3 },
+        { level: "beginner", title: `${courseData.title} — Beginner`, questionCount: 15, timeLimit: 13, passMark: 40, difficulty: "Easy", maxAttemptsPerWeek: 3, order: 1 },
+        { level: "intermediate", title: `${courseData.title} — Intermediate`, questionCount: 20, timeLimit: 19, passMark: 55, difficulty: "Medium", maxAttemptsPerWeek: 2, order: 2 },
+        { level: "advanced", title: `${courseData.title} — Advanced`, questionCount: 25, timeLimit: 25, passMark: 70, difficulty: "Hard", maxAttemptsPerWeek: 999, order: 3 },
       ];
 
       for (const testData of tests) {

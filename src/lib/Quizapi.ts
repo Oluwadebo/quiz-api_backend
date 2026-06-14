@@ -1,7 +1,7 @@
 import axios from "axios";
-
-const QUIZAPI_BASE = "https://quizapi.io/api/v1/questions";
+import "dotenv/config";
 const API_KEY = process.env.QUIZAPI_KEY;
+const BASE_URL = "https://quizapi.io/api/v1/questions";
 
 export interface QuizAPIQuestion {
   id: number;
@@ -13,55 +13,73 @@ export interface QuizAPIQuestion {
   correct_answers: Record<string, string>;
 }
 
-// ─── Shuffle array helper ───────────────────────────
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
+export interface APIAnswer {
+  id: string;
+  text: string;
+  isCorrect: boolean;
 }
 
-// ─── Fetch questions from QuizAPI ───────────────────
+const topicTagMap: Record<string, string> = {
+  html: "HTML",
+  css: "CSS",
+  javascript: "JavaScript",
+};
+
+const levelDifficultyMap: Record<string, string> = {
+  beginner: "EASY",
+  intermediate: "MEDIUM",
+  advanced: "HARD",
+};
+
+/**
+ * Fetches questions from QuizAPI.
+ * Uses query parameter 'api_key' as required by the API.
+ */
 export async function fetchQuestions(
   topic: string,
-  difficulty: string,
+  level: string,
   limit: number,
-   level: string,
-  count: number
 ) {
+  if (!API_KEY) {
+    throw new Error("QUIZAPI_KEY is missing from environment variables.");
+  }
+
   try {
-    const tag = topicTagMap[topic] || topic;
-  const difficulty = levelDifficultyMap[level] || "Easy";
-    const { data } = await axios.get<QuizAPIQuestion[]>(
-      `${QUIZAPI_BASE}`,
-      {
-        params: {
-          apiKey: API_KEY,
-          tags: topic,
-          difficulty,
-          limit,
-        },
-      }
-    );
+    const tag = topicTagMap[topic.toLowerCase()] || topic;
+    const difficulty = levelDifficultyMap[level.toLowerCase()] || "EASY";
 
-    // Format and shuffle options for each question
-    return data.map((q) => {
-      // Filter out null options
-      const validOptions = Object.entries(q.answers)
-        .filter(([, value]) => value !== null)
-        .map(([key, value]) => ({ key, value: value as string }));
+    const response = await axios.get(BASE_URL, {
+      params: {
+        api_key: API_KEY,
+        tags: tag,
+        difficulty: difficulty,
+        limit: limit,
+      },
+    });
+    // console.log("Raw API Response:", JSON.stringify(response.data, null, 2));
+    const rawData = response.data;
+    const data: QuizAPIQuestion[] = Array.isArray(rawData)
+      ? rawData
+      : rawData.data || [];
 
-      // Shuffle options — anti-cheat
-      const shuffledOptions = shuffleArray(validOptions);
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error("No questions returned from QuizAPI");
+    }
+    return data.map((q: any) => {
+      const answers = q.answers || [];
+      const correctAnswer = answers.find((a: any) => a.isCorrect)?.id || "";
+
+      const validOptions = answers.map((a: any) => ({
+        key: a.id,
+        value: a.text,
+      }));
 
       return {
         questionId: String(q.id),
-        question: q.question,
-        options: q.answers,
-        correctAnswer: q.correct_answer,
-        shuffledOptions,
+        question: q.text, // ← new format uses 'text' not 'question'
+        options: validOptions,
+        correctAnswer,
+        shuffledOptions: shuffleOptions(validOptions),
       };
     });
   } catch (error) {
@@ -70,36 +88,19 @@ export async function fetchQuestions(
   }
 }
 
-
-const topicTagMap: Record<string, string> = {
-  html: "HTML",
-  css: "CSS",
-  javascript: "JavaScript",
-};
-
-// Map our level names to QuizAPI difficulty
-const levelDifficultyMap: Record<string, string> = {
-  beginner: "Easy",
-  intermediate: "Medium",
-  advanced: "Hard",
-};
-
-
-
-
-// Shuffle answer options to prevent cheating
-export const shuffleOptions = (
-  answers: Record<string, string | null>
-): { key: string; value: string }[] => {
-  const options = Object.entries(answers)
-    .filter(([, value]) => value !== null && value !== "")
-    .map(([key, value]) => ({ key, value: value as string }));
-
-  // Fisher-Yates shuffle
-  for (let i = options.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [options[i], options[j]] = [options[j], options[i]];
+/**
+ * Fisher-Yates shuffle to randomize answer order
+ */
+export function shuffleOptions<T>(arr: T[]): T[] {
+  if (!Array.isArray(arr)) {
+    console.error("shuffleOptions received invalid input:", arr);
+    return [];
   }
 
-  return options;
-};
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}

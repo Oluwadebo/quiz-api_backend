@@ -1,8 +1,8 @@
-import { Request, Response } from "express";
-import Test from "../models/Test";
+import { Response } from "express";
+import { fetchQuestions } from "../lib/Quizapi";
 import Course from "../models/Course";
+import Test from "../models/Test";
 import TestSession from "../models/Testsession";
-import { fetchQuestions, shuffleOptions } from "../lib/Quizapi";
 
 // ─── Check attempts this week ──────────────────────
 const getAttemptsThisWeek = async (studentId: string, testId: string) => {
@@ -28,13 +28,19 @@ export const startTest = async (req: any, res: Response) => {
     if (!course) return res.status(404).json({ error: "Course not found" });
 
     // Check if student has an ongoing session for this test
-    const ongoing = await TestSession.findOne({ studentId, testId, status: "ongoing" });
+    const ongoing = await TestSession.findOne({
+      studentId,
+      testId,
+      status: "ongoing",
+    });
     if (ongoing) {
       // Check if time has expired
       const elapsed = (Date.now() - ongoing.startTime.getTime()) / 1000 / 60;
       if (elapsed >= ongoing.timeLimit) {
         await autoSubmit(ongoing._id.toString());
-        return res.status(400).json({ error: "Previous session expired and submitted" });
+        return res
+          .status(400)
+          .json({ error: "Previous session expired and submitted" });
       }
       return res.json({ session: ongoing, resumed: true });
     }
@@ -53,29 +59,39 @@ export const startTest = async (req: any, res: Response) => {
     const lastSession = await TestSession.findOne(
       { studentId, testId },
       {},
-      { sort: { createdAt: -1 } }
+      { sort: { createdAt: -1 } },
     );
     if (lastSession) {
-      const hoursSince = (Date.now() - lastSession.createdAt.getTime()) / 1000 / 3600;
+      const hoursSince =
+        (Date.now() - lastSession.createdAt.getTime()) / 1000 / 3600;
       if (hoursSince < 12) {
         const hoursLeft = Math.ceil(12 - hoursSince);
-        return res.status(429).json({ error: `Please wait ${hoursLeft} more hour(s) before retaking` });
+        return res.status(429).json({
+          error: `Please wait ${hoursLeft} more hour(s) before retaking`,
+        });
       }
     }
 
     // Fetch questions from QuizAPI
-    const rawQuestions = await fetchQuestions(course.topic, test.level, test.questionCount);
+    const rawQuestions = await fetchQuestions(
+      course.topic,
+      test.level,
+      test.questionCount,
+    );
 
     // Format and shuffle options
-    const questions = rawQuestions.map((q) => ({
-      id: String(q.id),
+    const questions = rawQuestions.map((q: any) => ({
+      id: q.questionId,
+      questionId: q.questionId,
       question: q.question,
       answers: q.answers,
-      correctAnswer: q.correct_answer,
-      shuffledOptions: shuffleOptions(q.answers),
+      correctAnswer: q.correctAnswer,
+      // shuffledOptions: shuffleOptions(q.answers),
+      shuffledOptions: q.shuffledOptions,
     }));
 
-    const attemptNumber = (await TestSession.countDocuments({ studentId, testId })) + 1;
+    const attemptNumber =
+      (await TestSession.countDocuments({ studentId, testId })) + 1;
 
     const session = await TestSession.create({
       studentId,
@@ -119,10 +135,17 @@ export const getOngoingSession = async (req: any, res: Response) => {
     const elapsed = (Date.now() - session.startTime.getTime()) / 1000 / 60;
     if (elapsed >= session.timeLimit) {
       await autoSubmit(session._id.toString());
-      return res.json({ session: null, message: "Session expired and submitted" });
+      return res.json({
+        session: null,
+        message: "Session expired and submitted",
+      });
     }
 
-    const timeRemaining = Math.max(0, session.timeLimit * 60 - Math.floor((Date.now() - session.startTime.getTime()) / 1000));
+    const timeRemaining = Math.max(
+      0,
+      session.timeLimit * 60 -
+        Math.floor((Date.now() - session.startTime.getTime()) / 1000),
+    );
 
     const safeSession = {
       ...session.toObject(),
@@ -148,25 +171,32 @@ export const submitTest = async (req: any, res: Response) => {
   try {
     const session = await TestSession.findById(sessionId);
     if (!session) return res.status(404).json({ error: "Session not found" });
-    if (session.studentId.toString() !== req.userId) return res.status(403).json({ error: "Forbidden" });
-    if (session.status !== "ongoing") return res.status(400).json({ error: "Session already completed" });
+    if (session.studentId.toString() !== req.userId)
+      return res.status(403).json({ error: "Forbidden" });
+    if (session.status !== "ongoing")
+      return res.status(400).json({ error: "Session already completed" });
 
     const test = await Test.findById(session.testId);
     if (!test) return res.status(404).json({ error: "Test not found" });
 
     // Grade answers
     let correct = 0;
-    const gradedAnswers = answers.map((a: { questionId: string; selectedAnswer: string }) => {
-      const question = session.questions.find((q: any) => q.id === a.questionId);
-      const isCorrect = question && a.selectedAnswer === question.correctAnswer;
-      if (isCorrect) correct++;
-      return {
-        questionId: a.questionId,
-        selectedAnswer: a.selectedAnswer,
-        correctAnswer: question?.correctAnswer || "",
-        isCorrect: !!isCorrect,
-      };
-    });
+    const gradedAnswers = answers.map(
+      (a: { questionId: string; selectedAnswer: string }) => {
+        const question = session.questions.find(
+          (q: any) => q.id === a.questionId,
+        );
+        const isCorrect =
+          question && a.selectedAnswer === question.correctAnswer;
+        if (isCorrect) correct++;
+        return {
+          questionId: a.questionId,
+          selectedAnswer: a.selectedAnswer,
+          correctAnswer: question?.correctAnswer || "",
+          isCorrect: !!isCorrect,
+        };
+      },
+    );
 
     const score = Math.round((correct / session.questions.length) * 100);
     const passed = score >= test.passMark;
@@ -200,12 +230,14 @@ export const trackTabSwitch = async (req: any, res: Response) => {
     const session = await TestSession.findByIdAndUpdate(
       sessionId,
       { $inc: { tabSwitchCount: 1 } },
-      { new: true }
+      { new: true },
     );
     // Auto submit if too many tab switches
     if (session && session.tabSwitchCount >= 3) {
       await autoSubmit(sessionId);
-      return res.json({ warning: "Too many tab switches — test auto submitted" });
+      return res.json({
+        warning: "Too many tab switches — test auto submitted",
+      });
     }
     return res.json({ tabSwitchCount: session?.tabSwitchCount });
   } catch (err) {
