@@ -9,6 +9,8 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { connectDB } from "./lib/db";
 
+import rateLimit from "express-rate-limit";
+
 import authRoutes from "./routes/auth";
 import courseRoutes from "./routes/course";
 import sessionRoutes from "./routes/session";
@@ -22,6 +24,7 @@ const app = express();
 const PORT = process.env.BACKEND_PORT || 5000;
 connectDB();
 
+app.set('trust proxy', 1);
 app.use(helmet());
 app.use(
   cors({
@@ -36,6 +39,23 @@ app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
+app.use("/api/", limiter);
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login/register attempts, please try again in an hour." },
+});
+app.use("/api/auth", authLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/courses", courseRoutes);
