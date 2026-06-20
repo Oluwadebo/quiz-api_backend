@@ -2,10 +2,10 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import { z } from "zod";
-import Settings from "../models/Setting";
 import User from "../models/User";
+import Settings from "../models/Setting";
+import nodemailer from "nodemailer";
 
 // Create the transport
 const transporter = nodemailer.createTransport({
@@ -76,11 +76,12 @@ export const register = async (req: Request, res: Response) => {
 
     // const resend = getResendClient();
 
+
     await transporter.sendMail({
-      from: `"${siteName}" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: `Verify your ${siteName} account`,
-      html: `
+  from: `"${siteName}" <${process.env.EMAIL_USER}>`,
+  to: email,
+  subject: `Verify your ${siteName} account`,
+  html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -156,12 +157,10 @@ export const register = async (req: Request, res: Response) => {
 </body>
 </html>
   `,
-    });
+});
 
-    console.log(
-      `${siteName} through ${process.env.EMAIL_USER} Attempting to send verification to: ${email}`,
-    );
-
+ console.log(`${siteName} through ${process.env.EMAIL_USER} Attempting to send verification to: ${email}`);
+ 
     return res.status(201).json({
       // token,
       user: {
@@ -170,8 +169,7 @@ export const register = async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
       },
-      message:
-        "Registration successful. Please check your email. So as to login.",
+      message: "Registration successful. Please check your email. So as to login.",
     });
   } catch (err) {
     console.error(err);
@@ -188,10 +186,12 @@ export const login = async (req: Request, res: Response) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
     if (!user.isVerified) {
-      return res.status(403).json({
-        error:
-          "Your account is not verified. Please check your email! and verify, so you can login.",
-      });
+      return res
+        .status(403)
+        .json({
+          error:
+            "Your account is not verified. Please check your email! and verify, so you can login.",
+        });
     }
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: "Invalid credentials" });
