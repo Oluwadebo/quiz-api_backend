@@ -2,11 +2,19 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { Resend } from "resend";
 import { z } from "zod";
 import User from "../models/User";
+import Settings from "../models/Setting";
+import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Create the transport
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER, // e.g., your-email@gmail.com
+    pass: process.env.EMAIL_PASS, // IMPORTANT: Use an App Password, not your normal password
+  },
+});
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -56,7 +64,9 @@ export const register = async (req: Request, res: Response) => {
       verificationToken,
     });
 
-    const verifyLink = `${process.env.FRONTEND_URL}/api/auth/verify?token=${verificationToken}`;
+    const settings = await Settings.findOne({});
+    const siteName = settings?.platformName || "QuizHub";
+    const verifyLink = `${process.env.BACKEND_URL}/api/auth/verify?token=${verificationToken}`;
 
     const token = jwt.sign(
       { userId: user._id, role: user.role },
@@ -64,15 +74,21 @@ export const register = async (req: Request, res: Response) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" },
     );
 
-    await resend.emails.send({
-      from: "onboarding@resend.dev", // Use your own domain here later
+    // const resend = getResendClient();
+    console.log(`[Email] Attempting to send verification to: ${email}`);
+
+    await transporter.sendMail({
+      from: `"${siteName}" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "Verify your Quiz App Account",
-      html: `<p>Click here to verify: <a href="${verifyLink}">${verifyLink}</a></p>`,
+      subject: `Verify your ${siteName} Account`,
+      html: `
+        <p>Welcome to ${siteName}!</p>
+        <p>Click here to verify: <a href="${verifyLink}">${verifyLink}</a></p>
+      `,
     });
 
     return res.status(201).json({
-      token,
+      // token,
       user: {
         id: user._id,
         name: user.name,
@@ -98,10 +114,14 @@ export const login = async (req: Request, res: Response) => {
     if (!user.isVerified) {
       return res
         .status(403)
-        .json({ error: "Please verify your email before logging in." });
+        .json({
+          error:
+            "Your account is not verified. Please check your email! and verify so can login.",
+        });
     }
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: "Invalid credentials" });
+
     const token = jwt.sign(
       { userId: user._id, role: user.role },
       process.env.JWT_SECRET!,
