@@ -34,7 +34,6 @@ export const startTest = async (req: any, res: Response) => {
       status: "ongoing",
     });
     if (ongoing) {
-      // Check if time has expired
       const elapsed = (Date.now() - ongoing.startTime.getTime()) / 1000 / 60;
       if (elapsed >= ongoing.timeLimit) {
         await autoSubmit(ongoing._id.toString());
@@ -79,16 +78,23 @@ export const startTest = async (req: any, res: Response) => {
       test.questionCount,
     );
 
-    // Format and shuffle options
+    // Format questions
+    // const questions = rawQuestions.map((q: any) => ({
+    //   id: q.questionId,
+    //   questionId: q.questionId,
+    //   question: q.question,
+    //   correctAnswer: q.correctAnswer,
+    //   shuffledOptions: q.shuffledOptions,
+    // }));
+
     const questions = rawQuestions.map((q: any) => ({
-      id: q.questionId,
-      questionId: q.questionId,
-      question: q.question,
-      answers: q.answers,
-      correctAnswer: q.correctAnswer,
-      // shuffledOptions: shuffleOptions(q.answers),
-      shuffledOptions: q.shuffledOptions,
-    }));
+  id: q.id || q.questionId, // Fallback for safety
+  questionId: q.id || q.questionId,
+  question: q.question,
+  correctAnswer: q.correctAnswer,
+  shuffledOptions:  q.shuffledOptions,
+  // shuffledOptions:  q.shuffledOptions(q.options),
+}));
 
     const attemptNumber =
       (await TestSession.countDocuments({ studentId, testId })) + 1;
@@ -110,7 +116,6 @@ export const startTest = async (req: any, res: Response) => {
         id: q.id,
         question: q.question,
         shuffledOptions: q.shuffledOptions,
-        // correctAnswer is NOT sent to frontend
       })),
     };
 
@@ -128,10 +133,8 @@ export const getOngoingSession = async (req: any, res: Response) => {
       studentId: req.userId,
       status: "ongoing",
     });
-
     if (!session) return res.json({ session: null });
 
-    // Check if expired
     const elapsed = (Date.now() - session.startTime.getTime()) / 1000 / 60;
     if (elapsed >= session.timeLimit) {
       await autoSubmit(session._id.toString());
@@ -166,7 +169,7 @@ export const getOngoingSession = async (req: any, res: Response) => {
 // ─── Submit test ───────────────────────────────────
 export const submitTest = async (req: any, res: Response) => {
   const { sessionId } = req.params;
-  const { answers } = req.body; // [{ questionId, selectedAnswer }]
+  const { answers } = req.body;
 
   try {
     const session = await TestSession.findById(sessionId);
@@ -179,7 +182,7 @@ export const submitTest = async (req: any, res: Response) => {
     const test = await Test.findById(session.testId);
     if (!test) return res.status(404).json({ error: "Test not found" });
 
-    // Grade answers
+    // Grade answers — Option B: save question text + answer text for review
     let correct = 0;
     const gradedAnswers = answers.map(
       (a: { questionId: string; selectedAnswer: string }) => {
@@ -191,8 +194,17 @@ export const submitTest = async (req: any, res: Response) => {
         if (isCorrect) correct++;
         return {
           questionId: a.questionId,
+          questionText: question?.question || "",
           selectedAnswer: a.selectedAnswer,
+          selectedAnswerText:
+            question?.shuffledOptions?.find(
+              (o: any) => o.key === a.selectedAnswer,
+            )?.value || "",
           correctAnswer: question?.correctAnswer || "",
+          correctAnswerText:
+            question?.shuffledOptions?.find(
+              (o: any) => o.key === question?.correctAnswer,
+            )?.value || "",
           isCorrect: !!isCorrect,
         };
       },
@@ -207,7 +219,7 @@ export const submitTest = async (req: any, res: Response) => {
       passed,
       status: "completed",
       endTime: new Date(),
-      questions: [], // clear questions after grading
+      questions: [], // clear raw questions — review data is in answers
     });
 
     return res.json({
@@ -232,7 +244,6 @@ export const trackTabSwitch = async (req: any, res: Response) => {
       { $inc: { tabSwitchCount: 1 } },
       { new: true },
     );
-    // Auto submit if too many tab switches
     if (session && session.tabSwitchCount >= 3) {
       await autoSubmit(sessionId);
       return res.json({
@@ -262,19 +273,32 @@ export const getHistory = async (req: any, res: Response) => {
   }
 };
 
+// ─── Get single session (for review) ──────────────
+export const getSession = async (req: any, res: Response) => {
+  const { sessionId } = req.params;
+  try {
+    const session = await TestSession.findById(sessionId)
+      .populate("testId", "title level passMark")
+      .populate("courseId", "title topic");
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (session.studentId.toString() !== req.userId)
+      return res.status(403).json({ error: "Forbidden" });
+    return res.json(session);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to fetch session" });
+  }
+};
+
 // ─── Auto submit helper ────────────────────────────
 const autoSubmit = async (sessionId: string) => {
   const session = await TestSession.findById(sessionId);
   if (!session || session.status !== "ongoing") return;
-
   const test = await Test.findById(session.testId);
   if (!test) return;
-
   const correct = session.answers.filter((a: any) => a.isCorrect).length;
   const total = session.questions.length || 1;
   const score = Math.round((correct / total) * 100);
   const passed = score >= test.passMark;
-
   await TestSession.findByIdAndUpdate(sessionId, {
     score,
     passed,

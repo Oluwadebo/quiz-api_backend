@@ -1,7 +1,5 @@
-import axios from "axios";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import "dotenv/config";
-const API_KEY = process.env.QUIZAPI_KEY;
-const BASE_URL = "https://quizapi.io/api/v1/questions";
 
 export interface QuizAPIQuestion {
   id: number;
@@ -31,60 +29,53 @@ const levelDifficultyMap: Record<string, string> = {
   advanced: "HARD",
 };
 
-/**
- * Fetches questions from QuizAPI.
- * Uses query parameter 'api_key' as required by the API.
- */
 export async function fetchQuestions(
   topic: string,
   level: string,
   limit: number,
 ) {
-  if (!API_KEY) {
-    throw new Error("QUIZAPI_KEY is missing from environment variables.");
-  }
+  console.log("DEBUG: Checking API Key existence:", !!process.env.GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+
+  // try {
+  //   const modelList = await genAI.listModels();
+  //   console.log("DEBUG: Available models are:", modelList.models.map(m => m.name));
+  // } catch (e) {
+  //   console.error("DEBUG: Could not list models:", e);
+  // }
+  // Flash is perfect for high-speed, low-cost tasks
+  const model = genAI.getGenerativeModel({
+    model: "gemini-3.5-flash",
+    generationConfig: { responseMimeType: "application/json" },
+  });
+
+  const prompt = `Generate ${limit} multiple-choice questions about ${topic} for a ${level} level audience.
+    Return ONLY a JSON array of objects.
+    Each object MUST have:
+    {
+      "id": "1",
+      "question": "...",
+      "options": [{"key": "a", "value": "Option A"}, {"key": "b", "value": "Option B"}, {"key": "c", "value": "Option C"}, {"key": "d", "value": "Option D"}],
+      "correctAnswer": "a"
+    }  ||  Format: [{"id": "1", "question": "...", "options": [...], "correctAnswer": "a"}]`;
 
   try {
-    const tag = topicTagMap[topic.toLowerCase()] || topic;
-    const difficulty = levelDifficultyMap[level.toLowerCase()] || "EASY";
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    // const data = JSON.parse(responseText);
+    const data = JSON.parse(responseText.replace(/```json/g, "").replace(/```/g, ""));
 
-    const response = await axios.get(BASE_URL, {
-      params: {
-        api_key: API_KEY,
-        tags: tag,
-        difficulty: difficulty,
-        limit: limit,
-      },
-    });
-    // console.log("Raw API Response:", JSON.stringify(response.data, null, 2));
-    const rawData = response.data;
-    const data: QuizAPIQuestion[] = Array.isArray(rawData)
-      ? rawData
-      : rawData.data || [];
-
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error("No questions returned from QuizAPI");
-    }
-    return data.map((q: any) => {
-      const answers = q.answers || [];
-      const correctAnswer = answers.find((a: any) => a.isCorrect)?.id || "";
-
-      const validOptions = answers.map((a: any) => ({
-        key: a.id,
-        value: a.text,
-      }));
-
-      return {
-        questionId: String(q.id),
-        question: q.text, // ← new format uses 'text' not 'question'
-        options: validOptions,
-        correctAnswer,
-        shuffledOptions: shuffleOptions(validOptions),
-      };
-    });
+    // Map to your existing format
+    return data.map((q: any) => ({
+      id: String(q.id),
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      shuffledOptions: shuffleOptions(q.options),
+    }));
   } catch (error) {
-    console.error("[QuizAPI] Failed to fetch questions:", error);
-    throw new Error("Failed to fetch questions from QuizAPI");
+    console.error("[Gemini Generation Error]:", error);
+    throw new Error("Failed to generate questions with Gemini");
   }
 }
 

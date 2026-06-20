@@ -75,7 +75,7 @@ async function main() {
       // Create 3 tests per course
       const tests = [
         { level: "beginner", title: `${courseData.title} — Beginner`, questionCount: 15, timeLimit: 13, passMark: 40, difficulty: "Easy", maxAttemptsPerWeek: 3, order: 1 },
-        { level: "intermediate", title: `${courseData.title} — Intermediate`, questionCount: 20, timeLimit: 19, passMark: 55, difficulty: "Medium", maxAttemptsPerWeek: 2, order: 2 },
+        { level: "intermediate", title: `${courseData.title} — Intermediate`, questionCount: 20, timeLimit: 19, passMark: 55, difficulty: "Medium", maxAttemptsPerWeek: 4, order: 2 },
         { level: "advanced", title: `${courseData.title} — Advanced`, questionCount: 25, timeLimit: 25, passMark: 70, difficulty: "Hard", maxAttemptsPerWeek: 999, order: 3 },
       ];
 

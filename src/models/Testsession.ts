@@ -1,10 +1,10 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 
 interface IQuestion {
-  questionId: string;       // QuizAPI question id
+  questionId: string; // QuizAPI question id
   question: string;
   options: Record<string, string | null>; // { a: "option1", b: "option2", ... }
-  correctAnswer: string;    // kept server side only
+  correctAnswer: string; // kept server side only
   shuffledOptions: { key: string; value: string }[]; // shuffled for display
 }
 
@@ -24,10 +24,10 @@ export interface ITestSession extends Document {
   passed: boolean;
   startTime: Date;
   endTime?: Date;
-  timeLimit: number;        // in minutes, copied from test
+  timeLimit: number; // in minutes, copied from test
   status: "ongoing" | "completed" | "expired";
   attemptNumber: number;
-  tabSwitchCount: number;   // anti-cheat
+  tabSwitchCount: number; // anti-cheat
 }
 
 const TestSessionSchema = new Schema<ITestSession>(
@@ -47,7 +47,11 @@ const TestSessionSchema = new Schema<ITestSession>(
     answers: [
       {
         questionId: String,
+        questionText: String,
         selectedAnswer: String,
+        selectedAnswerText: String,
+        correctAnswer: String,
+        correctAnswerText: String,
         isCorrect: Boolean,
       },
     ],
@@ -64,7 +68,7 @@ const TestSessionSchema = new Schema<ITestSession>(
     attemptNumber: { type: Number, default: 1 },
     tabSwitchCount: { type: Number, default: 0 },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export default mongoose.model<ITestSession>("TestSession", TestSessionSchema);
