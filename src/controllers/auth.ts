@@ -2,10 +2,10 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { z } from "zod";
-import User from "../models/User";
-import Settings from "../models/Setting";
 import nodemailer from "nodemailer";
+import { z } from "zod";
+import Settings from "../models/Setting";
+import User from "../models/User";
 
 // Create the transport
 const transporter = nodemailer.createTransport({
@@ -75,17 +75,92 @@ export const register = async (req: Request, res: Response) => {
     );
 
     // const resend = getResendClient();
-    console.log(`[Email] Attempting to send verification to: ${email}`);
 
     await transporter.sendMail({
       from: `"${siteName}" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: `Verify your ${siteName} Account`,
+      subject: `Verify your ${siteName} account`,
       html: `
-        <p>Welcome to ${siteName}!</p>
-        <p>Click here to verify: <a href="${verifyLink}">${verifyLink}</a></p>
-      `,
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verify your email</title>
+</head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:'Inter',Helvetica,Arial,sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px;">
+  <tr><td align="center">
+    <table width="520" cellpadding="0" cellspacing="0" style="background:#0F0F0F;border-radius:16px;overflow:hidden;border:1px solid rgba(108,71,255,0.15);">
+
+      <!-- Header -->
+      <tr>
+        <td style="background:#131320;padding:32px 40px 28px;text-align:center;border-bottom:1px solid rgba(108,71,255,0.15);">
+          <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#6C47FF,#9B7BFF);display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
+            <!-- Replace with your logo -->
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <div style="font-size:13px;font-weight:500;color:#E8E0FF;letter-spacing:0.08em;text-transform:uppercase;">${siteName}</div>
+        </td>
+      </tr>
+
+      <!-- Body -->
+      <tr>
+        <td style="padding:36px 40px;">
+          <p style="font-size:26px;color:#F7F7F5;margin:0 0 14px;line-height:1.3;font-family:Georgia,serif;">
+            Confirm your email address
+          </p>
+          <p style="font-size:14px;line-height:1.7;color:#9E9E9E;margin:0 0 28px;">
+            You're one step away. Click the button below to verify your address and activate your account.
+            This link expires in 24 hours.
+          </p>
+
+          <!-- CTA -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+            <tr><td align="center">
+              <a href="${verifyLink}"
+                 style="display:inline-block;background:#6C47FF;color:#ffffff;font-size:15px;font-weight:500;padding:14px 36px;border-radius:10px;text-decoration:none;letter-spacing:0.01em;">
+                Verify my email
+              </a>
+            </td></tr>
+          </table>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.07);margin:0 0 24px;">
+
+          <p style="font-size:12px;color:#666666;margin:0 0 8px;">Or paste this link into your browser:</p>
+          <a href="${verifyLink}" style="font-size:12px;color:#6C47FF;word-break:break-all;text-decoration:none;">${verifyLink}</a>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="font-size:11px;color:#555555;">If you didn't create an account, ignore this email.</td>
+              <td align="right">
+                <span style="font-size:11px;color:#9B7BFF;background:rgba(108,71,255,0.12);padding:4px 10px;border-radius:20px;">Expires in 24 h</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+
+</body>
+</html>
+  `,
     });
+
+    console.log(
+      `${siteName} through ${process.env.EMAIL_USER} Attempting to send verification to: ${email}`,
+    );
 
     return res.status(201).json({
       // token,
@@ -95,7 +170,8 @@ export const register = async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
       },
-      message: "Registration successful. Please check your email.",
+      message:
+        "Registration successful. Please check your email. So as to login.",
     });
   } catch (err) {
     console.error(err);
@@ -112,12 +188,10 @@ export const login = async (req: Request, res: Response) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
     if (!user.isVerified) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "Your account is not verified. Please check your email! and verify so can login.",
-        });
+      return res.status(403).json({
+        error:
+          "Your account is not verified. Please check your email! and verify, so you can login.",
+      });
     }
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: "Invalid credentials" });
