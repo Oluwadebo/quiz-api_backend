@@ -3,8 +3,34 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
 
+import { z } from 'zod';
+
+const registerSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string()
+    .email("Invalid email format")
+    .refine((val) => {
+      // Custom logic: check if the domain part after the last dot is at least 2 chars
+      const parts = val.split('.');
+      const domain = parts[parts.length - 1];
+      return domain.length >= 2;
+    }, { message: "Email domain must be valid (e.g., .com, .net)" }),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
 export const register = async (req: Request, res: Response) => {
-  const { name, email, password } = req.body;
+
+  const result = registerSchema.safeParse(req.body);
+
+  if (!result.success) {
+    return res.status(400).json({
+      error: "Validation failed",
+      details: result.error.errors[0].message
+    });
+  }
+
+ const { name, email, password } = result.data;
+  // const { name, email, password } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: "All fields required" });
   }
