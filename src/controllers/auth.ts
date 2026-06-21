@@ -49,7 +49,7 @@ export const register = async (req: Request, res: Response) => {
 
     const settings = await Settings.findOne({});
     const siteName = settings?.platformName || "QuizHub";
-    const verifyLink = `${process.env.BACKEND_URL}/api/auth/verify?token=${verificationToken}`;
+    const verifyLink = `${process.env.FRONTEND_URL}/api/auth/verify?token=${verificationToken}`;
     try {
       await sendVerificationEmail(email, verifyLink, siteName);
       console.log(`Verification email sent to ${email}`);
@@ -140,10 +140,11 @@ export const verifyEmail = async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid or expired token" });
   }
   if (user.isVerified) {
-    return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
+    return res.status(200).json({ message: "Already verified" });
   }
   user.isVerified = true;
   user.verificationToken = "";
   await user.save();
-  return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
+  return res.status(200).json({ message: "Email verified successfully" });
+  // return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
 };
