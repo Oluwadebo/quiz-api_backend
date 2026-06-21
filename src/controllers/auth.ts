@@ -49,7 +49,7 @@ export const register = async (req: Request, res: Response) => {
 
     const settings = await Settings.findOne({});
     const siteName = settings?.platformName || "QuizHub";
-    const verifyLink = `${process.env.FRONTEND_URL}/api/auth/verify?token=${verificationToken}`;
+    const verifyLink = `${process.env.BACKEND_URL}/api/auth/verify?token=${verificationToken}`;
     try {
       await sendVerificationEmail(email, verifyLink, siteName);
       console.log(`Verification email sent to ${email}`);
