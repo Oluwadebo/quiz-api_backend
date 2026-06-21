@@ -242,9 +242,16 @@ export const register = async (req: Request, res: Response) => {
       message:
         "Registration successful. Please check your email. So as to login.",
     });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error" });
+  } catch (err: any) {
+    console.error("--- DETAILED SERVER ERROR ---");
+    console.error("Error Code:", err.code);
+    console.error("Error Message:", err.message);
+    console.error("Full Error Stack:", err);
+    console.error("-----------------------------");
+    return res.status(500).json({
+        error: "Server error",
+        details: err.message || "Unknown error"
+    });
   }
 };
 
