@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import dns from "dns";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
@@ -7,20 +8,46 @@ import { z } from "zod";
 import Settings from "../models/Setting";
 import User from "../models/User";
 
+const SMTP_HOST = "smtp.gmail.com";
+const SMTP_PORT = 465;
+
+const transporter = async () => {
+  const lookup = await new Promise<string>((resolve, reject) => {
+    dns.lookup(SMTP_HOST, { family: 4 }, (err, address) => {
+      if (err) reject(err);
+      resolve(address);
+    });
+  });
+
+  console.log(`Resolved ${SMTP_HOST} to IPv4 address: ${lookup}`);
+
+  return nodemailer.createTransport({
+    host: lookup, // Connect directly to the IP
+    port: SMTP_PORT,
+    secure: true,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    tls: {
+      servername: SMTP_HOST,
+    },
+  });
+};
 // Create the transport
-const transporter = nodemailer.createTransport({
- host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  family: 4, // Forces IPv4
-  connectionTimeout: 10000, // 10 seconds timeout
-  greetingTimeout: 10000,   // 10 seconds timeout
-  socketTimeout: 10000,     // 10 seconds timeout
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// const transporter = nodemailer.createTransport({
+//  host: "smtp.gmail.com",
+//   port: 2525,
+//   secure: true,
+//   family: 4, // Forces IPv4
+//   connectionTimeout: 10000, // 10 seconds timeout
+//   greetingTimeout: 10000,   // 10 seconds timeout
+//   socketTimeout: 10000,     // 10 seconds timeout
+//   auth: {
+//     user: process.env.EMAIL_USER,
+//     pass: process.env.EMAIL_PASS,
+//   },
+// });
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -49,8 +76,6 @@ export const register = async (req: Request, res: Response) => {
   }
 
   const { name, email, password } = result.data;
-  // const { name, email, password } = req.body;
-
   if (!name || !email || !password) {
     return res.status(400).json({ error: "All fields required" });
   }
@@ -70,6 +95,24 @@ export const register = async (req: Request, res: Response) => {
       verificationToken,
     });
 
+    const checkNetwork = await new Promise((resolve) => {
+      const socket = require("net").createConnection(465, "smtp.gmail.com");
+      socket.setTimeout(5000);
+      socket.on("connect", () => {
+        socket.destroy();
+        resolve("CONNECTED");
+      });
+      socket.on("timeout", () => {
+        socket.destroy();
+        resolve("TIMED_OUT");
+      });
+      socket.on("error", (err) => {
+        resolve(err.message);
+      });
+    });
+
+    console.log("Network Test Result to SMTP:", checkNetwork);
+
     const settings = await Settings.findOne({});
     const siteName = settings?.platformName || "QuizHub";
     const verifyLink = `${process.env.BACKEND_URL}/api/auth/verify?token=${verificationToken}`;
@@ -80,11 +123,12 @@ export const register = async (req: Request, res: Response) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" },
     );
 
-    await transporter.sendMail({
-  from: `"${siteName}" <${process.env.EMAIL_USER}>`,
-  to: email,
-  subject: `[${siteName}] Verify your email address`,
-  html: `
+    const mailer = await transporter();
+    await mailer.sendMail({
+      from: `"${siteName}" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `[${siteName}] Verify your email address`,
+      html: `
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -181,7 +225,7 @@ export const register = async (req: Request, res: Response) => {
 </body>
 </html>
   `,
-});
+    });
 
     console.log(
       `${siteName} through ${process.env.EMAIL_USER} Attempting to send verification to: ${email}`,
@@ -253,7 +297,7 @@ export const getMe = async (req: any, res: Response) => {
 
 export const verifyEmail = async (req: Request, res: Response) => {
   const { token } = req.query;
-if (!token) {
+  if (!token) {
     return res.status(400).json({ error: "Token is required" });
   }
   const user = await User.findOne({ verificationToken: token });
