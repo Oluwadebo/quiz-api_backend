@@ -1,25 +1,21 @@
-import * as SibApiV3Sdk from "@getbrevo/brevo";
-
-const client = new SibApiV3Sdk.TransactionalEmailsApi();
-client.setApiKey(
-  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
-  process.env.BREVO_API_KEY!
-);
+// import fetch from "node-fetch";
 
 export async function sendVerificationEmail(
   email: string,
   verifyLink: string,
   siteName: string
 ): Promise<void> {
-  const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-
-  sendSmtpEmail.sender = {
-    name: siteName,
-    email: process.env.BREVO_SENDER_EMAIL!,
-  };
-  sendSmtpEmail.to = [{ email }];
-  sendSmtpEmail.subject = `[${siteName}] Verify your email address`;
-  sendSmtpEmail.htmlContent = `
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": process.env.BREVO_API_KEY!,
+    },
+    body: JSON.stringify({
+      sender: { name: siteName, email: process.env.BREVO_SENDER_EMAIL },
+      to: [{ email }],
+      subject: `[${siteName}] Verify your email address`,
+    htmlContent: `
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -95,7 +91,11 @@ export async function sendVerificationEmail(
   </td></tr>
 </table>
 </body>
-</html>`;
-
-  await client.sendTransacEmail(sendSmtpEmail);
+</html>`,
+  }),
+})
+if (!response.ok) {
+    const err = await response.json();
+    throw new Error(`Brevo error: ${JSON.stringify(err)}`);
+  }
 }
