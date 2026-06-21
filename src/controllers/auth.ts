@@ -9,13 +9,16 @@ import User from "../models/User";
 
 // Create the transport
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+ host: "smtp.gmail.com",
   port: 465,
-  secure: true, // Use true for port 465
-  family: 4,    // THIS FIXES THE ENETUNREACH ERROR: Forces IPv4
+  secure: true,
+  family: 4, // Forces IPv4
+  connectionTimeout: 10000, // 10 seconds timeout
+  greetingTimeout: 10000,   // 10 seconds timeout
+  socketTimeout: 10000,     // 10 seconds timeout
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Ensure this is a Google App Password
+    pass: process.env.EMAIL_PASS,
   },
 });
 
