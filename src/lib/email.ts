@@ -1,17 +1,25 @@
-import { Resend } from "resend";
+import * as SibApiV3Sdk from "@getbrevo/brevo";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const client = new SibApiV3Sdk.TransactionalEmailsApi();
+client.setApiKey(
+  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY!
+);
 
 export async function sendVerificationEmail(
   email: string,
   verifyLink: string,
   siteName: string
 ): Promise<void> {
-  const { error } = await resend.emails.send({
-    from: `${siteName} <onboarding@resend.dev>`,
-    to: email,
-    subject: `[${siteName}] Verify your email address`,
-    html: `
+  const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+
+  sendSmtpEmail.sender = {
+    name: siteName,
+    email: process.env.BREVO_SENDER_EMAIL!,
+  };
+  sendSmtpEmail.to = [{ email }];
+  sendSmtpEmail.subject = `[${siteName}] Verify your email address`;
+  sendSmtpEmail.htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -87,8 +95,7 @@ export async function sendVerificationEmail(
   </td></tr>
 </table>
 </body>
-</html>`,
-  });
+</html>`;
 
-  if (error) throw new Error(error.message);
+  await client.sendTransacEmail(sendSmtpEmail);
 }
