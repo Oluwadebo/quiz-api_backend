@@ -17,18 +17,6 @@ export interface APIAnswer {
   isCorrect: boolean;
 }
 
-const topicTagMap: Record<string, string> = {
-  html: "HTML",
-  css: "CSS",
-  javascript: "JavaScript",
-};
-
-const levelDifficultyMap: Record<string, string> = {
-  beginner: "EASY",
-  intermediate: "MEDIUM",
-  advanced: "HARD",
-};
-
 export async function fetchQuestions(
   topic: string,
   level: string,
@@ -37,13 +25,6 @@ export async function fetchQuestions(
   console.log("DEBUG: Checking API Key existence:", !!process.env.GEMINI_API_KEY);
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-  // try {
-  //   const modelList = await genAI.listModels();
-  //   console.log("DEBUG: Available models are:", modelList.models.map(m => m.name));
-  // } catch (e) {
-  //   console.error("DEBUG: Could not list models:", e);
-  // }
-  // Flash is perfect for high-speed, low-cost tasks
   const model = genAI.getGenerativeModel({
     model: "gemini-3.5-flash",
     generationConfig: { responseMimeType: "application/json" },

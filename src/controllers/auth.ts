@@ -74,8 +74,6 @@ export const register = async (req: Request, res: Response) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" },
     );
 
-    // const resend = getResendClient();
-
     await transporter.sendMail({
   from: `"${siteName}" <${process.env.EMAIL_USER}>`,
   to: email,

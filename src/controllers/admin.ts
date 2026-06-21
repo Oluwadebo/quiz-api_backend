@@ -58,11 +58,38 @@ export const createTest = async (req: Request, res: Response) => {
 
 export const updateTest = async (req: Request, res: Response) => {
   const { id } = req.params;
+  const {
+    title,
+    level,
+    questionCount,
+    timeLimit,
+    passMark,
+    maxAttemptsPerWeek,
+    isActive,
+    order
+  } = req.body;
   try {
-    const test = await Test.findByIdAndUpdate(id, req.body, { new: true });
+    const test = await Test.findByIdAndUpdate(
+      id,
+      {
+        title,
+        level,
+        questionCount,
+        timeLimit,
+        passMark,
+        maxAttemptsPerWeek,
+        isActive,
+        order
+      },
+      {
+        returnDocument: 'after',
+        runValidators: true
+      }
+    );
     if (!test) return res.status(404).json({ error: "Test not found" });
     return res.json(test);
   } catch (err) {
+    console.error(err);
     return res.status(500).json({ error: "Failed to update test" });
   }
 };

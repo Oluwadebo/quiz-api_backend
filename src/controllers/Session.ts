@@ -3,6 +3,7 @@ import { fetchQuestions } from "../lib/Quizapi";
 import Course from "../models/Course";
 import Test from "../models/Test";
 import TestSession from "../models/Testsession";
+import Settings from "../models/Setting";
 
 // ─── Check attempts this week ──────────────────────
 const getAttemptsThisWeek = async (studentId: string, testId: string) => {
@@ -71,30 +72,42 @@ export const startTest = async (req: any, res: Response) => {
       }
     }
 
+     const pastSessions = await TestSession.find({
+      studentId,
+      status: "completed",
+    });
+    const usedQuestionIds = new Set(
+      pastSessions.flatMap((s) => s.answers.map((a: any) => a.questionId)),
+    );
+
     // Fetch questions from QuizAPI
+    const bufferMultiplier = 2;
     const rawQuestions = await fetchQuestions(
       course.topic,
       test.level,
-      test.questionCount,
+      test.questionCount * bufferMultiplier,
     );
 
-    // Format questions
-    // const questions = rawQuestions.map((q: any) => ({
-    //   id: q.questionId,
-    //   questionId: q.questionId,
-    //   question: q.question,
-    //   correctAnswer: q.correctAnswer,
-    //   shuffledOptions: q.shuffledOptions,
-    // }));
+const uniqueQuestions = rawQuestions.filter(
+      (q: any) => !usedQuestionIds.has(q.id || q.questionId)
+    );
+    const finalQuestions = uniqueQuestions.slice(0, test.questionCount);
 
-    const questions = rawQuestions.map((q: any) => ({
-  id: q.id || q.questionId, // Fallback for safety
-  questionId: q.id || q.questionId,
-  question: q.question,
-  correctAnswer: q.correctAnswer,
-  shuffledOptions:  q.shuffledOptions,
-  // shuffledOptions:  q.shuffledOptions(q.options),
-}));
+    const settings = await Settings.findOne({});
+        const siteName = settings?.platformName || "QuizHub";
+    if (finalQuestions.length < test.questionCount) {
+        // Optional: Handle case where not enough unique questions are available
+        console.warn("Ran out of unique questions, reusing some.");
+        console.warn(`[${siteName}] Low unique question count: ${finalQuestions.length}/${test.questionCount}`);
+    }
+
+    const questions = finalQuestions.map((q: any) => ({
+      id: q.id || q.questionId,
+      questionId: q.id || q.questionId,
+      question: q.question,
+      correctAnswer: q.correctAnswer,
+      shuffledOptions: q.shuffledOptions,
+    }));
 
     const attemptNumber =
       (await TestSession.countDocuments({ studentId, testId })) + 1;
@@ -121,7 +134,7 @@ export const startTest = async (req: any, res: Response) => {
 
     return res.status(201).json({ session: safeSession });
   } catch (err) {
-    console.error(err);
+    console.error("Error starting test:",err);
     return res.status(500).json({ error: "Failed to start test" });
   }
 };
