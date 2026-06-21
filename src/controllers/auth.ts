@@ -249,11 +249,16 @@ export const getMe = async (req: any, res: Response) => {
 
 export const verifyEmail = async (req: Request, res: Response) => {
   const { token } = req.query;
-
+if (!token) {
+    return res.status(400).json({ error: "Token is required" });
+  }
   const user = await User.findOne({ verificationToken: token });
 
   if (!user) {
     return res.status(400).json({ error: "Invalid or expired token" });
+  }
+  if (user.isVerified) {
+    return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
   }
 
   // Update user status

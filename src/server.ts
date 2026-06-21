@@ -29,10 +29,12 @@ app.use(helmet());
 app.use(
   cors({
     origin: [
+      "*",
       "http://localhost:3000",
       process.env.ALLOWED_ORIGIN || "",
       process.env.NEXT_PUBLIC_APP_URL || "",
     ].filter(Boolean),
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   }),
 );
 app.use(morgan("dev"));
