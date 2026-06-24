@@ -18,9 +18,12 @@ export interface APIAnswer {
 }
 
 const GEMINI_MODELS = [
-  "gemini-3.5-flash",
+ "gemini-3.5-flash",
   "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
   "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-3.1-flash-lite",
 ];
 export async function fetchQuestions(
   topic: string,
@@ -60,7 +63,8 @@ export async function fetchQuestions(
       if (
         error?.status !== 503 &&
         error?.status !== 404 &&
-        error?.status !== 400
+        error?.status !== 400&&
+  error?.status !== 429
       )
         throw error;
       // throw new Error("Failed to generate questions with Gemini");
