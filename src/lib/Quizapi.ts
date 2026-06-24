@@ -63,7 +63,7 @@ export async function fetchQuestions(
         error?.status !== 400
       )
         throw error;
-      throw new Error("Failed to generate questions with Gemini");
+      // throw new Error("Failed to generate questions with Gemini");
     }
   }
   throw new Error(`All Gemini models failed: ${lastError?.message}`);
