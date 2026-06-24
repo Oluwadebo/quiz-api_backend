@@ -17,47 +17,46 @@ export interface APIAnswer {
   isCorrect: boolean;
 }
 
+const GEMINI_MODELS = [
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+  "gemini-1.0-pro",
+];
 export async function fetchQuestions(
   topic: string,
   level: string,
   limit: number,
 ) {
-  console.log("DEBUG: Checking API Key existence:", !!process.env.GEMINI_API_KEY);
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3.5-flash",
-    generationConfig: { responseMimeType: "application/json" },
-  });
-
-  const prompt = `Generate ${limit} multiple-choice questions about ${topic} for a ${level} level audience.
-    Return ONLY a JSON array of objects.
-    Each object MUST have:
-    {
-      "id": "1",
-      "question": "...",
-      "options": [{"key": "a", "value": "Option A"}, {"key": "b", "value": "Option B"}, {"key": "c", "value": "Option C"}, {"key": "d", "value": "Option D"}],
-      "correctAnswer": "a"
-    }  ||  Format: [{"id": "1", "question": "...", "options": [...], "correctAnswer": "a"}]`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    // const data = JSON.parse(responseText);
-    const data = JSON.parse(responseText.replace(/```json/g, "").replace(/```/g, ""));
-
-    // Map to your existing format
-    return data.map((q: any) => ({
-      id: String(q.id),
-      question: q.question,
-      options: q.options,
-      correctAnswer: q.correctAnswer,
-      shuffledOptions: shuffleOptions(q.options),
-    }));
-  } catch (error) {
-    console.error("[Gemini Generation Error]:", error);
-    throw new Error("Failed to generate questions with Gemini");
+  let lastError: any;
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      console.log(`Trying model: ${modelName}`);
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { responseMimeType: "application/json" },
+      });
+      const prompt = `Generate ${limit} multiple-choice questions about ${topic} for a ${level} level audience. Return ONLY a JSON array of objects. Each object MUST have:{  "id": "1",  "question": "...",  "options": [{"key": "a", "value": "Option A"}, {"key": "b", "value": "Option B"}, {"key": "c", "value": "Option C"}, {"key": "d", "value": "Option D"}],  "correctAnswer": "a" } ||  Format: [{"id": "1", "question": "...", "options": [...], "correctAnswer": "a"}]`;
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+      const data = JSON.parse(
+        responseText.replace(/```json/g, "").replace(/```/g, ""),
+      );
+      return data.map((q: any) => ({
+        id: String(q.id),
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        shuffledOptions: shuffleOptions(q.options),
+      }));
+    } catch (error: any) {
+      console.error(`[${modelName} failed]:`, error?.status || error?.message);
+      lastError = error;
+      if (error?.status !== 503) throw error;
+       throw new Error("Failed to generate questions with Gemini");
+    }
   }
+  throw new Error(`All Gemini models failed: ${lastError?.message}`);
 }
 
 /**
