@@ -18,9 +18,9 @@ export interface APIAnswer {
 }
 
 const GEMINI_MODELS = [
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-8b",
-  "gemini-1.0-pro",
+  "gemini-3.5-flash",  
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
 ];
 export async function fetchQuestions(
   topic: string,
@@ -32,10 +32,13 @@ export async function fetchQuestions(
   for (const modelName of GEMINI_MODELS) {
     try {
       console.log(`Trying model: ${modelName}`);
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: { responseMimeType: "application/json" },
-      });
+      const model = genAI.getGenerativeModel(
+        {
+          model: modelName,
+          generationConfig: { responseMimeType: "application/json" },
+        },
+        { apiVersion: "v1" },
+      );
       const prompt = `Generate ${limit} multiple-choice questions about ${topic} for a ${level} level audience. Return ONLY a JSON array of objects. Each object MUST have:{  "id": "1",  "question": "...",  "options": [{"key": "a", "value": "Option A"}, {"key": "b", "value": "Option B"}, {"key": "c", "value": "Option C"}, {"key": "d", "value": "Option D"}],  "correctAnswer": "a" } ||  Format: [{"id": "1", "question": "...", "options": [...], "correctAnswer": "a"}]`;
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
@@ -52,8 +55,8 @@ export async function fetchQuestions(
     } catch (error: any) {
       console.error(`[${modelName} failed]:`, error?.status || error?.message);
       lastError = error;
-      if (error?.status !== 503) throw error;
-       throw new Error("Failed to generate questions with Gemini");
+      if (error?.status !== 503 && error?.status !== 404) throw error;
+      throw new Error("Failed to generate questions with Gemini");
     }
   }
   throw new Error(`All Gemini models failed: ${lastError?.message}`);
